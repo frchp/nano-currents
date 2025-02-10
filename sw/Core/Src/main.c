@@ -26,12 +26,26 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+typedef enum
+{
+  ADC_5V_MONITOR,
+  ADC_CURRENT_MONITOR,
+  ADC_MAX_CHANNELS
+}Adc_Channels_t;
 
+typedef struct
+{
+  uint32_t m_u32magicStart;
+  uint32_t m_u32voltage;
+  uint32_t m_u32current;
+  uint32_t m_u32magicEnd;
+} __attribute__((packed)) Comm_Frame_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define NB_BYTE_IN_32BITS (4u)
+#define UART_SIZE_TO_TRANSMIT (NB_BYTE_IN_32BITS * 4u)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -46,7 +60,8 @@ DMA_HandleTypeDef hdma_adc;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-
+uint32_t g_u32AdcResults[ADC_MAX_CHANNELS];
+Comm_Frame_t g_sFrame = { 0xA5A5A5A5, 0u, 0u, 0xA5A5A5A5};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -56,7 +71,7 @@ static void MX_DMA_Init(void);
 static void MX_ADC_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+void ADC_IsDone( DMA_HandleTypeDef * _hdma );
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -97,6 +112,14 @@ int main(void)
   MX_ADC_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
+  if(HAL_ADC_Start_DMA(&hadc, (uint32_t*)&g_u32AdcResults, ADC_MAX_CHANNELS) != HAL_OK)
+  {
+	Error_Handler();  /* Error in starting ADC-DMA */
+  }
+
+  // Attach callback to transfer complete DMA
+  HAL_DMA_RegisterCallback(&hdma_adc, HAL_DMA_XFER_CPLT_CB_ID, ADC_IsDone);
 
   /* USER CODE END 2 */
 
@@ -292,7 +315,12 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void ADC_IsDone( DMA_HandleTypeDef * _hdma )
+{
+  g_sFrame.m_u32current = g_u32AdcResults[ADC_CURRENT_MONITOR];
+  g_sFrame.m_u32voltage = g_u32AdcResults[ADC_5V_MONITOR];
+  HAL_UART_Transmit_IT(&huart2, (uint8_t *)&g_sFrame, UART_SIZE_TO_TRANSMIT);
+}
 /* USER CODE END 4 */
 
 /**
