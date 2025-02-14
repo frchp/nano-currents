@@ -15,16 +15,25 @@ static void send_data(uint16_t current, uint16_t voltage);
 
 static void clock_init(void)
 {
-  // Enable HSI (16 MHz) and wait until ready
-  RCC->CR |= RCC_CR_HSION;
-  while (!(RCC->CR & RCC_CR_HSIRDY));
+  RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+  RCC->APB1ENR |= RCC_APB1ENR_PWREN;
 
-  // Set system clock to HSI (16 MHz)
-  RCC->CFGR = 0;  // Default SYSCLK = HSI16
+  // Enable MSI (2.097 MHz) and set range to 5
+  RCC->CR |= RCC_CR_MSION;  // Enable MSI
+  while (!(RCC->CR & RCC_CR_MSIRDY));  // Wait until MSI is ready
+
+  RCC->ICSCR = (RCC->ICSCR & ~RCC_ICSCR_MSIRANGE) | (5 << RCC_ICSCR_MSIRANGE_Pos);  // Set MSI range to 5 (2.097 MHz)
+  while (!(RCC->CR & RCC_CR_MSIRDY));  // Wait until MSI stabilizes
+
+  // Set system clock to MSI (2.097 MHz)
+  RCC->CFGR = 0;  // Default SYSCLK = MSI
 
   // Enable LSI for future use (watchdog, RTC if needed)
   RCC->CSR |= RCC_CSR_LSION;
   while (!(RCC->CSR & RCC_CSR_LSIRDY));
+
+  // Read access latency needs to be programmed according to CPU clock
+  FLASH->ACR &= ~FLASH_ACR_LATENCY;
 }
 
 static void gpio_init(void)
@@ -84,12 +93,16 @@ static void adc_dma_init(void)
   // Enable ADC
   ADC1->CR |= ADC_CR_ADEN;
   while (!(ADC1->ISR & ADC_ISR_ADRDY));  // Wait until ADC is ready
+
+  // Enable DMA IRQ
+  NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 }
 
 static void usart2_init(void)
 {
   // Enable USART2 clock
   RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
+  // TODO : set USART2 clock to PCLK1 in RCC
 
   // Configure USART2: 115200 baud (assuming 16 MHz clock)
   USART2->BRR = (16000000 / 115200);
@@ -130,16 +143,20 @@ void DMA1_Channel1_IRQHandler(void)
   }
 }
 
+void HardFault_Handler(void)
+{
+  while(1);
+}
+
 int main(void)
 {
+  SCB->VTOR = (uint32_t)0x08000000;
+
   clock_init();
   gpio_init();
   tim21_init();
   adc_dma_init();
   usart2_init();
-
-  // Enable DMA IRQ
-  NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
   while (1)
   {

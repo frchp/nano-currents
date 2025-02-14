@@ -5,6 +5,7 @@
           "name": "Debug",
           "cwd": "${workspaceFolder}",
           "executable": "${workspaceFolder}/build/usb-spy.elf",
+          "device": "STM32L011F4",
           "request": "launch",
           "type": "cortex-debug",
           "servertype": "openocd",
@@ -18,9 +19,13 @@
           ],
           "interface": "swd",
           "showDevDebugOutput": "raw",
-          "v1": false,                            // ST-Link version
-          "runToEntryPoint": "main",              // Run to main and stop there [optional]
-          "svdFile": "vendor/STM32L0x1.svd"    // SVD file to see registers [optional]
+          "v1": false,
+          "runToEntryPoint": "main",
+          "svdFile": "vendor/STM32L0x1.svd",
+          "postRestartCommands": [
+              "monitor reset halt",
+              "load"
+          ]
       }
   ]
 }
