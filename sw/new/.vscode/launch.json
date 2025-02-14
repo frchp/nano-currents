@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+      {
+          "name": "Debug",
+          "cwd": "${workspaceFolder}",
+          "executable": "${workspaceFolder}/build/usb-spy.elf",
+          "request": "launch",
+          "type": "cortex-debug",
+          "servertype": "openocd",
+          "liveWatch": {
+              "enabled": true,
+              "samplesPerSecond": 4
+          },
+          "configFiles": [
+              "interface/stlink.cfg",
+              "target/stm32l0.cfg"
+          ],
+          "interface": "swd",
+          "showDevDebugOutput": "raw",
+          "v1": false,                            // ST-Link version
+          "runToEntryPoint": "main",              // Run to main and stop there [optional]
+          "svdFile": "vendor/STM32L0x1.svd"    // SVD file to see registers [optional]
+      }
+  ]
+}
