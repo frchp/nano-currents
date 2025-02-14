@@ -35,17 +35,15 @@ typedef enum
 
 typedef struct
 {
-  uint32_t m_u32magicStart;
   uint32_t m_u32voltage;
   uint32_t m_u32current;
-  uint32_t m_u32magicEnd;
 } __attribute__((packed)) Comm_Frame_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define NB_BYTE_IN_32BITS (4u)
-#define UART_SIZE_TO_TRANSMIT (NB_BYTE_IN_32BITS * 4u)
+#define UART_SIZE_TO_TRANSMIT (NB_BYTE_IN_32BITS * 2u)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -57,11 +55,13 @@ typedef struct
 ADC_HandleTypeDef hadc;
 DMA_HandleTypeDef hdma_adc;
 
+TIM_HandleTypeDef htim21;
+
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 uint32_t g_u32AdcResults[ADC_MAX_CHANNELS];
-Comm_Frame_t g_sFrame = { 0xA5A5A5A5, 0u, 0u, 0xA5A5A5A5};
+Comm_Frame_t g_sFrame = { 0u, 0u };
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -70,6 +70,7 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_TIM21_Init(void);
 /* USER CODE BEGIN PFP */
 void ADC_IsDone( DMA_HandleTypeDef * _hdma );
 /* USER CODE END PFP */
@@ -111,15 +112,14 @@ int main(void)
   MX_DMA_Init();
   MX_ADC_Init();
   MX_USART2_UART_Init();
+  MX_TIM21_Init();
   /* USER CODE BEGIN 2 */
-
-  if(HAL_ADC_Start_DMA(&hadc, (uint32_t*)&g_u32AdcResults, ADC_MAX_CHANNELS) != HAL_OK)
-  {
-	Error_Handler();  /* Error in starting ADC-DMA */
-  }
 
   // Attach callback to transfer complete DMA
   HAL_DMA_RegisterCallback(&hdma_adc, HAL_DMA_XFER_CPLT_CB_ID, ADC_IsDone);
+
+  // Start timer
+  HAL_TIM_Base_Start_IT(&htim21);
 
   /* USER CODE END 2 */
 
@@ -247,6 +247,51 @@ static void MX_ADC_Init(void)
 }
 
 /**
+  * @brief TIM21 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM21_Init(void)
+{
+
+  /* USER CODE BEGIN TIM21_Init 0 */
+
+  /* USER CODE END TIM21_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM21_Init 1 */
+
+  /* USER CODE END TIM21_Init 1 */
+  htim21.Instance = TIM21;
+  htim21.Init.Prescaler = 209;
+  htim21.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim21.Init.Period = 49;
+  htim21.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim21.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim21) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim21, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim21, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM21_Init 2 */
+
+  /* USER CODE END TIM21_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -320,6 +365,15 @@ void ADC_IsDone( DMA_HandleTypeDef * _hdma )
   g_sFrame.m_u32current = g_u32AdcResults[ADC_CURRENT_MONITOR];
   g_sFrame.m_u32voltage = g_u32AdcResults[ADC_5V_MONITOR];
   HAL_UART_Transmit_IT(&huart2, (uint8_t *)&g_sFrame, UART_SIZE_TO_TRANSMIT);
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  // Start ADC acquisition
+  if(HAL_ADC_Start_DMA(&hadc, (uint32_t*)&g_u32AdcResults, ADC_MAX_CHANNELS) != HAL_OK)
+  {
+    Error_Handler();  /* Error in starting ADC-DMA */
+  }
 }
 /* USER CODE END 4 */
 
