@@ -1,0 +1,3 @@
+C:/sw_viveris/usb-spy-current/sw/build/CMakeFiles/usb-spy.dir
+C:/sw_viveris/usb-spy-current/sw/build/CMakeFiles/edit_cache.dir
+C:/sw_viveris/usb-spy-current/sw/build/CMakeFiles/rebuild_cache.dir

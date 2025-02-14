@@ -1,6 +1,7 @@
 #include "stm32l011xx.h"
 #include <stdio.h>
 
+#define PCLK_FREQ (2097000ul)
 #define BUFFER_SIZE 2  // Two channels: USB_Current (PA0), USB_Voltage (PA1)
 
 volatile uint16_t adc_buffer[BUFFER_SIZE];  // Buffer for ADC data
@@ -17,6 +18,8 @@ static void clock_init(void)
 {
   RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
   RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+
+  PWR->CR |= PWR_CR_DBP;
 
   // Enable MSI (2.097 MHz) and set range to 5
   RCC->CR |= RCC_CR_MSION;  // Enable MSI
@@ -42,11 +45,11 @@ static void gpio_init(void)
   RCC->IOPENR |= RCC_IOPENR_GPIOAEN;
 
   // PA0 (USB_Current) & PA1 (USB_Voltage) as Analog Inputs
-  GPIOA->MODER |= (3 << (0 * 2)) | (3 << (1 * 2));  // Analog mode
+  GPIOA->MODER |= (3 << GPIO_MODER_MODE0_Pos) | (3 << GPIO_MODER_MODE1_Pos);  // Analog mode
 
   // PA9 (USART2_TX) as Alternate Function
-  GPIOA->MODER &= ~(3 << (9 * 2));  // Clear mode
-  GPIOA->MODER |= (2 << (9 * 2));   // Set to AF mode
+  GPIOA->MODER &= ~GPIO_MODER_MODE9_Msk;  // Clear mode
+  GPIOA->MODER |= GPIO_MODER_MODE9_1;   // Set to AF mode
   GPIOA->AFR[1] |= (4 << ((9 - 8) * 4));  // AF4 for USART2_TX
 }
 
@@ -75,11 +78,15 @@ static void adc_dma_init(void)
   RCC->APB2ENR |= RCC_APB2ENR_ADCEN;
   RCC->AHBENR  |= RCC_AHBENR_DMAEN;
 
+  // Set ADC Clock Prescaler
+  ADC1_COMMON->CCR |= ADC_CCR_PRESC_0; // 0b0001 => /2 prescaler
+
   // Configure ADC (12-bit resolution, continuous mode disabled)
   ADC1->CFGR1 &= ~ADC_CFGR1_RES;  // 12-bit resolution
   ADC1->CFGR1 |= ADC_CFGR1_DMAEN | ADC_CFGR1_DMACFG;  // Enable DMA
+  ADC1->CFGR2 |= ADC_CFGR2_CKMODE_0;  // PCLK/2
   ADC1->CHSELR = ADC_CHSELR_CHSEL0 | ADC_CHSELR_CHSEL1;  // Select PA0 & PA1
-  ADC1->SMPR = 2;  // Sampling time (approx 7.5 cycles)
+  ADC1->SMPR = ADC_SMPR_SMP_2 | ADC_SMPR_SMP_1;  // Sampling time (approx 39.5 cycles)
 
   // Configure DMA for ADC1
   DMA1_Channel1->CPAR = (uint32_t) &ADC1->DR;  // Source: ADC data register
@@ -88,11 +95,15 @@ static void adc_dma_init(void)
   DMA1_Channel1->CCR = DMA_CCR_MINC  // Memory increment mode
              | DMA_CCR_CIRC  // Circular mode
              | DMA_CCR_PL_1  // High priority
-             | DMA_CCR_EN;   // Enable DMA
+             | DMA_CCR_EN   // Enable DMA
+             | DMA_CCR_TCIE; // Enable TC interrupt
 
   // Enable ADC
   ADC1->CR |= ADC_CR_ADEN;
-  while (!(ADC1->ISR & ADC_ISR_ADRDY));  // Wait until ADC is ready
+  while (!(ADC1->ISR & ADC_ISR_ADRDY))
+  {
+    // Wait until ADC is ready
+  }
 
   // Enable DMA IRQ
   NVIC_EnableIRQ(DMA1_Channel1_IRQn);
@@ -102,10 +113,10 @@ static void usart2_init(void)
 {
   // Enable USART2 clock
   RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
-  // TODO : set USART2 clock to PCLK1 in RCC
+  // APB clock is set as USART2 clock by default in RCC->CCIPR
 
   // Configure USART2: 115200 baud (assuming 16 MHz clock)
-  USART2->BRR = (16000000 / 115200);
+  USART2->BRR = (PCLK_FREQ / 115200);
   USART2->CR1 = USART_CR1_TE | USART_CR1_UE;  // Enable TX and USART
 
   while (!(USART2->ISR & USART_ISR_TEACK));  // Wait for TX to be ready
@@ -154,9 +165,9 @@ int main(void)
 
   clock_init();
   gpio_init();
-  tim21_init();
   adc_dma_init();
   usart2_init();
+  tim21_init(); // Start timer last, when every other peripheral is init
 
   while (1)
   {
