@@ -44,8 +44,8 @@ static void gpio_init(void)
   // Enable GPIOA clock
   RCC->IOPENR |= RCC_IOPENR_GPIOAEN;
 
-  // PA0 (USB_Current) & PA1 (USB_Voltage) as Analog Inputs
-  GPIOA->MODER |= (3 << GPIO_MODER_MODE0_Pos) | (3 << GPIO_MODER_MODE1_Pos);  // Analog mode
+  // PA0 (USB_Current) & PA2 (USB_Voltage) as Analog Inputs
+  GPIOA->MODER |= (3 << GPIO_MODER_MODE0_Pos) | (3 << GPIO_MODER_MODE2_Pos);  // Analog mode
 
   // PA9 (USART2_TX) as Alternate Function
   GPIOA->MODER &= ~GPIO_MODER_MODE9_Msk;  // Clear mode
@@ -85,7 +85,7 @@ static void adc_dma_init(void)
   ADC1->CFGR1 &= ~ADC_CFGR1_RES;  // 12-bit resolution
   ADC1->CFGR1 |= ADC_CFGR1_DMAEN | ADC_CFGR1_DMACFG;  // Enable DMA
   ADC1->CFGR2 |= ADC_CFGR2_CKMODE_0;  // PCLK/2
-  ADC1->CHSELR = ADC_CHSELR_CHSEL0 | ADC_CHSELR_CHSEL1;  // Select PA0 & PA1
+  ADC1->CHSELR = ADC_CHSELR_CHSEL0 | ADC_CHSELR_CHSEL2;  // Select PA0 & PA2
   ADC1->SMPR = ADC_SMPR_SMP_2 | ADC_SMPR_SMP_1;  // Sampling time (approx 39.5 cycles)
 
   // Configure DMA for ADC1
@@ -125,7 +125,7 @@ static void usart2_init(void)
 static void send_data(uint16_t current, uint16_t voltage)
 {
   char msg[20];
-  int len = snprintf(msg, sizeof(msg), "%u,%u\n", current, voltage);
+  int len = snprintf(msg, sizeof(msg), "%x,%x\r\n", current, voltage);
 
   for (int i = 0; i < len; i++)
   {
