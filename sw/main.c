@@ -96,6 +96,8 @@ static void adc_dma_init(void)
              | DMA_CCR_CIRC  // Circular mode
              | DMA_CCR_PL_1  // High priority
              | DMA_CCR_EN   // Enable DMA
+             | DMA_CCR_MSIZE_0 // 16 bits array
+             | DMA_CCR_PSIZE_1 // 32 bits ADC reg
              | DMA_CCR_TCIE; // Enable TC interrupt
 
   // Enable ADC
