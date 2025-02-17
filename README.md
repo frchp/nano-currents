@@ -15,4 +15,3 @@ UART to send data.
  - Drive reset line on the STM32L011
  - For more precision, use external ADC
  - SW : divide components in files
- - SW : rework transmission to not be blocking

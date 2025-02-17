@@ -1,7 +1,8 @@
 #include "stm32l011xx.h"
-#include <stdio.h>
 
 #define PCLK_FREQ ((uint32_t)2097152U)
+
+#define UART_MSG_SIZE     (4u)
 
 #define ADC_BUFFER_SIZE   (2)  // Two channels: USB_Current (PA0), USB_Voltage (PA1)
 #define ADC_REF_MV        (3300u)
@@ -19,6 +20,22 @@
 #define _VOLTAGE_MV_TO_MV(x)  (uint16_t)((x * VOLTAGE_AMP_INV_RATIO)/VOLTAGE_AMP_GAIN)
 
 volatile uint16_t g_au16adcBuffer[ADC_BUFFER_SIZE];  // Buffer for ADC data
+volatile uint8_t g_u8AdcRdyFlag = 0u;
+
+typedef struct {
+  union
+  {
+    char m_acRawBuffer[UART_MSG_SIZE];
+    struct
+    {
+      uint16_t m_u16Voltage;
+      uint16_t m_u16Current;
+    } m_sValues;
+  } m_uData;
+
+  uint8_t m_u8TxIdx;
+} UartPacket_t;
+volatile UartPacket_t g_sUartPacket;
 
 /* Private functions */
 static void clock_init(void);
@@ -29,6 +46,7 @@ static void usart2_init(void);
 static void send_data(uint16_t current, uint16_t voltage);
 static uint16_t adc_to_current_microamp(uint16_t current_lsb);
 static uint16_t adc_to_voltage_millivolt(uint16_t voltage_lsb);
+static void send_next_char(void);
 
 static void clock_init(void)
 {
@@ -137,19 +155,23 @@ static void usart2_init(void)
   USART2->CR1 = USART_CR1_TE | USART_CR1_UE;  // Enable TX and USART
 
   while (!(USART2->ISR & USART_ISR_TEACK));  // Wait for TX to be ready
+
+  // Enable USART2 interrupt in NVIC
+  NVIC_EnableIRQ(USART2_IRQn);
 }
 
 static void send_data(uint16_t current, uint16_t voltage)
 {
-  // TODO : can be optimized to not use polling
-  char msg[20];
-  int len = snprintf(msg, sizeof(msg), "%u,%u\r\n", current, voltage);
+  // Fill packet
+  g_sUartPacket.m_u8TxIdx = 0u;
+  g_sUartPacket.m_uData.m_sValues.m_u16Current = current;
+  g_sUartPacket.m_uData.m_sValues.m_u16Voltage = voltage;
 
-  for (int i = 0; i < len; i++)
-  {
-    while (!(USART2->ISR & USART_ISR_TXE));  // Wait for TX buffer empty
-    USART2->TDR = msg[i];  // Send byte
-  }
+  // Enable TXE interrupt to know when to refill peripheral
+  while (!(USART2->ISR & USART_ISR_TXE));  // Wait for TX buffer empty
+  USART2->CR1 |= USART_CR1_TXEIE;
+
+  send_next_char();
 }
 
 static uint16_t adc_to_current_microamp(uint16_t current_lsb)
@@ -160,6 +182,16 @@ static uint16_t adc_to_current_microamp(uint16_t current_lsb)
 static uint16_t adc_to_voltage_millivolt(uint16_t voltage_lsb)
 {
   return (_VOLTAGE_MV_TO_MV(_ADC_LSB_TO_MV(voltage_lsb)));
+}
+
+static void send_next_char(void)
+{
+  USART2->TDR = g_sUartPacket.m_uData.m_acRawBuffer[g_sUartPacket.m_u8TxIdx++];
+  if (g_sUartPacket.m_u8TxIdx == UART_MSG_SIZE)
+  {
+    // All data have been transmitted
+    USART2->CR1 &= ~USART_CR1_TXEIE;
+  }
 }
 
 /* Interrupts handlers */
@@ -179,8 +211,17 @@ void DMA1_Channel1_IRQHandler(void)
   {
     DMA1->IFCR |= DMA_IFCR_CTCIF1;  // Clear DMA transfer complete flag
 
-    // Send ADC results via USART
-    send_data(adc_to_current_microamp(g_au16adcBuffer[0]), adc_to_voltage_millivolt(g_au16adcBuffer[1]));
+    // Set flag to asynchronize data handling
+    g_u8AdcRdyFlag = 1u;
+  }
+}
+
+void USART2_IRQHandler(void)
+{
+  if (USART2->ISR & USART_ISR_TXE)
+  {
+    // Flag is cleared by a write to TDR register
+    send_next_char();
   }
 }
 
@@ -204,5 +245,11 @@ int main(void)
   while (1)
   {
     __WFI();  // Wait for interrupt (low power)
+    if(g_u8AdcRdyFlag != 0u)
+    {
+      g_u8AdcRdyFlag = 0u;
+      // Send ADC results via USART
+      send_data(adc_to_current_microamp(g_au16adcBuffer[0]), adc_to_voltage_millivolt(g_au16adcBuffer[1]));
+    }
   }
 }
