@@ -1,10 +1,10 @@
 #include "stm32l011xx.h"
 #include <stdio.h>
 
-#define PCLK_FREQ (2097000ul)
-#define BUFFER_SIZE 2  // Two channels: USB_Current (PA0), USB_Voltage (PA1)
+#define PCLK_FREQ ((uint32_t)2097152U)
+#define g_au16adcBuffer_SIZE 2  // Two channels: USB_Current (PA0), USB_Voltage (PA1)
 
-volatile uint16_t adc_buffer[BUFFER_SIZE];  // Buffer for ADC data
+volatile uint16_t g_au16adcBuffer[g_au16adcBuffer_SIZE];  // Buffer for ADC data
 
 /* Private functions */
 static void clock_init(void);
@@ -21,11 +21,10 @@ static void clock_init(void)
 
   PWR->CR |= PWR_CR_DBP;
 
-  // Enable MSI (2.097 MHz) and set range to 5
   RCC->CR |= RCC_CR_MSION;  // Enable MSI
   while (!(RCC->CR & RCC_CR_MSIRDY));  // Wait until MSI is ready
 
-  RCC->ICSCR = (RCC->ICSCR & ~RCC_ICSCR_MSIRANGE) | (5 << RCC_ICSCR_MSIRANGE_Pos);  // Set MSI range to 5 (2.097 MHz)
+  RCC->ICSCR = (RCC->ICSCR & ~RCC_ICSCR_MSIRANGE) | (RCC_ICSCR_MSIRANGE_5);  // Set MSI range to 5 (2.097 MHz)
   while (!(RCC->CR & RCC_CR_MSIRDY));  // Wait until MSI stabilizes
 
   // Set system clock to MSI (2.097 MHz)
@@ -90,8 +89,8 @@ static void adc_dma_init(void)
 
   // Configure DMA for ADC1
   DMA1_Channel1->CPAR = (uint32_t) &ADC1->DR;  // Source: ADC data register
-  DMA1_Channel1->CMAR = (uint32_t) adc_buffer;  // Destination: adc_buffer
-  DMA1_Channel1->CNDTR = BUFFER_SIZE;  // Number of transfers
+  DMA1_Channel1->CMAR = (uint32_t) g_au16adcBuffer;  // Destination: g_au16adcBuffer
+  DMA1_Channel1->CNDTR = g_au16adcBuffer_SIZE;  // Number of transfers
   DMA1_Channel1->CCR = DMA_CCR_MINC  // Memory increment mode
              | DMA_CCR_CIRC  // Circular mode
              | DMA_CCR_PL_1  // High priority
@@ -126,6 +125,7 @@ static void usart2_init(void)
 
 static void send_data(uint16_t current, uint16_t voltage)
 {
+  // TODO : can be optimized to not use polling
   char msg[20];
   int len = snprintf(msg, sizeof(msg), "%x,%x\r\n", current, voltage);
 
@@ -135,6 +135,8 @@ static void send_data(uint16_t current, uint16_t voltage)
     USART2->TDR = msg[i];  // Send byte
   }
 }
+
+/* Interrupts handlers */
 
 void TIM21_IRQHandler(void)
 {
@@ -152,7 +154,7 @@ void DMA1_Channel1_IRQHandler(void)
     DMA1->IFCR |= DMA_IFCR_CTCIF1;  // Clear DMA transfer complete flag
 
     // Send ADC results via USART
-    send_data(adc_buffer[0], adc_buffer[1]);
+    send_data(g_au16adcBuffer[0], g_au16adcBuffer[1]);
   }
 }
 
@@ -160,6 +162,8 @@ void HardFault_Handler(void)
 {
   while(1);
 }
+
+/* Main routine */
 
 int main(void)
 {
