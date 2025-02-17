@@ -3,6 +3,7 @@
 #define PCLK_FREQ ((uint32_t)2097152U)
 
 #define UART_MSG_SIZE     (4u)
+#define UART_BYTES_IN_U16 (2u)
 
 #define ADC_BUFFER_SIZE   (2)  // Two channels: USB_Current (PA0), USB_Voltage (PA1)
 #define ADC_REF_MV        (3300u)
@@ -30,6 +31,9 @@ typedef struct {
     {
       uint16_t m_u16Voltage;
       uint16_t m_u16Current;
+      #if (UART_MSG_SIZE % UART_BYTES_IN_U16 != 0)
+        uint8_t m_au8Padding[(UART_MSG_SIZE % UART_BYTES_IN_U16)];
+      #endif
     } m_sValues;
   } m_uData;
 
