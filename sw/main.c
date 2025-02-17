@@ -27,8 +27,8 @@
  * End of configuration
  */
 
-volatile uint16_t g_au16adcBuffer[ADC_BUFFER_SIZE];  // Buffer for ADC data
-volatile uint8_t g_u8AdcRdyFlag = 0u;
+static volatile uint16_t g_au16adcBuffer[ADC_BUFFER_SIZE];  // Buffer for ADC data
+static volatile uint8_t g_u8AdcRdyFlag = 0u;
 
 typedef struct {
   union
@@ -46,7 +46,7 @@ typedef struct {
 
   uint8_t m_u8TxIdx;
 } UartPacket_t;
-volatile UartPacket_t g_sUartPacket;
+static volatile UartPacket_t g_sUartPacket;
 
 /* Private functions */
 static void clock_init(void);
