@@ -2,9 +2,23 @@
 #include <stdio.h>
 
 #define PCLK_FREQ ((uint32_t)2097152U)
-#define g_au16adcBuffer_SIZE 2  // Two channels: USB_Current (PA0), USB_Voltage (PA1)
 
-volatile uint16_t g_au16adcBuffer[g_au16adcBuffer_SIZE];  // Buffer for ADC data
+#define ADC_BUFFER_SIZE   (2)  // Two channels: USB_Current (PA0), USB_Voltage (PA1)
+#define ADC_REF_MV        (3300u)
+#define ADC_REF_LSB       (0xFFF) // 12bits ADC
+#define _ADC_LSB_TO_MV(x) ((x * ADC_REF_MV)/ADC_REF_LSB)
+
+#define CURRENT_AMP_GAIN      (500u)
+#define CURRENT_AMP_SHUNT     (1u) // TODO : Check value
+#define CURRENT_UA_MA_FACTOR  (1000u)
+#define _CURRENT_MV_TO_UA(x)  (uint16_t)((x * CURRENT_UA_MA_FACTOR)/(CURRENT_AMP_GAIN * CURRENT_AMP_SHUNT))
+
+#define VOLTAGE_AMP_GAIN      (1u)
+#define VOLTAGE_AMP_IN_RATIO  (0.5f)
+#define VOLTAGE_AMP_INV_RATIO (2u) // = 1/VOLTAGE_AMP_IN_RATIO
+#define _VOLTAGE_MV_TO_MV(x)  (uint16_t)((x * VOLTAGE_AMP_INV_RATIO)/VOLTAGE_AMP_GAIN)
+
+volatile uint16_t g_au16adcBuffer[ADC_BUFFER_SIZE];  // Buffer for ADC data
 
 /* Private functions */
 static void clock_init(void);
@@ -13,6 +27,8 @@ static void tim21_init(void);
 static void adc_dma_init(void);
 static void usart2_init(void);
 static void send_data(uint16_t current, uint16_t voltage);
+static uint16_t adc_to_current_microamp(uint16_t current_lsb);
+static uint16_t adc_to_voltage_millivolt(uint16_t voltage_lsb);
 
 static void clock_init(void)
 {
@@ -90,7 +106,7 @@ static void adc_dma_init(void)
   // Configure DMA for ADC1
   DMA1_Channel1->CPAR = (uint32_t) &ADC1->DR;  // Source: ADC data register
   DMA1_Channel1->CMAR = (uint32_t) g_au16adcBuffer;  // Destination: g_au16adcBuffer
-  DMA1_Channel1->CNDTR = g_au16adcBuffer_SIZE;  // Number of transfers
+  DMA1_Channel1->CNDTR = ADC_BUFFER_SIZE;  // Number of transfers
   DMA1_Channel1->CCR = DMA_CCR_MINC  // Memory increment mode
              | DMA_CCR_CIRC  // Circular mode
              | DMA_CCR_PL_1  // High priority
@@ -127,13 +143,23 @@ static void send_data(uint16_t current, uint16_t voltage)
 {
   // TODO : can be optimized to not use polling
   char msg[20];
-  int len = snprintf(msg, sizeof(msg), "%x,%x\r\n", current, voltage);
+  int len = snprintf(msg, sizeof(msg), "%u,%u\r\n", current, voltage);
 
   for (int i = 0; i < len; i++)
   {
     while (!(USART2->ISR & USART_ISR_TXE));  // Wait for TX buffer empty
     USART2->TDR = msg[i];  // Send byte
   }
+}
+
+static uint16_t adc_to_current_microamp(uint16_t current_lsb)
+{
+  return (_CURRENT_MV_TO_UA(_ADC_LSB_TO_MV(current_lsb)));
+}
+
+static uint16_t adc_to_voltage_millivolt(uint16_t voltage_lsb)
+{
+  return (_VOLTAGE_MV_TO_MV(_ADC_LSB_TO_MV(voltage_lsb)));
 }
 
 /* Interrupts handlers */
@@ -154,7 +180,7 @@ void DMA1_Channel1_IRQHandler(void)
     DMA1->IFCR |= DMA_IFCR_CTCIF1;  // Clear DMA transfer complete flag
 
     // Send ADC results via USART
-    send_data(g_au16adcBuffer[0], g_au16adcBuffer[1]);
+    send_data(adc_to_current_microamp(g_au16adcBuffer[0]), adc_to_voltage_millivolt(g_au16adcBuffer[1]));
   }
 }
 

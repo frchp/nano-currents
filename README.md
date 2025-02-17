@@ -10,3 +10,7 @@ Board with : INA211 shunt monitor, Vbus voltage buffer (ratio 1/2), STM32L011F4P
 ADC to measure current and voltage.
 
 UART to send data.
+
+## Improvements
+ - Drive reset line on the STM32L011
+ - For more precision, use external ADC
