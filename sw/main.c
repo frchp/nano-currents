@@ -1,6 +1,9 @@
 #include "stm32l011xx.h"
 
 #define PCLK_FREQ ((uint32_t)2097152U)
+/**
+ * Configuration
+ */
 
 #define UART_MSG_SIZE     (4u)
 #define UART_BYTES_IN_U16 (2u)
@@ -19,6 +22,10 @@
 #define VOLTAGE_AMP_IN_RATIO  (0.5f)
 #define VOLTAGE_AMP_INV_RATIO (2u) // = 1/VOLTAGE_AMP_IN_RATIO
 #define _VOLTAGE_MV_TO_MV(x)  (uint16_t)((x * VOLTAGE_AMP_INV_RATIO)/VOLTAGE_AMP_GAIN)
+
+/**
+ * End of configuration
+ */
 
 volatile uint16_t g_au16adcBuffer[ADC_BUFFER_SIZE];  // Buffer for ADC data
 volatile uint8_t g_u8AdcRdyFlag = 0u;
