@@ -41,7 +41,7 @@ typedef struct {
       #if (UART_MSG_SIZE % UART_BYTES_IN_U16 != 0)
         uint8_t m_au8Padding[(UART_MSG_SIZE % UART_BYTES_IN_U16)];
       #endif
-    } m_sValues;
+    } __attribute__((packed)) m_sValues;
   } m_uData;
 
   uint8_t m_u8TxIdx;
