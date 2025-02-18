@@ -6,6 +6,8 @@ import matplotlib.animation as animation
 ########## CONFIGURATION ##########
 
 COM_PORT = "COM6"
+START_BYTE = b'\xA5'
+FRAME_LENGTH = 6
 
 # Constants for calculations
 ADC_REF_MV = 3300  # Reference voltage in mV
@@ -36,14 +38,14 @@ def read_serial(port= COM_PORT, baudrate=115200):
 def update(frame, ser, currents, voltages, ax1, ax2):
   while True:
     start_byte = ser.read(1)
-    if start_byte == b'\xA5':
-      data = ser.read(5)  # Read remaining 5 bytes
-      if len(data) == 5:
+    if start_byte == START_BYTE:
+      data = ser.read(FRAME_LENGTH - 1)  # Read remaining 5 bytes
+      if len(data) == (FRAME_LENGTH - 1):
         frame_data = start_byte + data
         raw_current = struct.unpack('<H', frame_data[3:5])[0]  # Little-endian 16-bit
         raw_voltage = struct.unpack('<H', frame_data[1:3])[0]  # Little-endian 16-bit
         received_crc = frame_data[5]
-        computed_crc = calculate_crc8(frame_data[1:5])
+        computed_crc = calculate_crc8(frame_data[0:5])
 
         if received_crc == computed_crc:
           # Convert raw ADC values to actual measurements
