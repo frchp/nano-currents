@@ -7,6 +7,13 @@ import matplotlib.animation as animation
 
 COM_PORT = "COM6"
 
+# Constants for calculations
+ADC_REF_MV = 3300  # Reference voltage in mV
+ADC_REF_LSB = 0xFFF  # Max ADC value (12-bit resolution)
+VOLTAGE_AMP_IN_RATIO = 2  # Amplification ratio for voltage
+CURRENT_AMP_GAIN = 500  # Current amplifier gain
+CURRENT_AMP_SHUNT = 10  # Shunt resistor value in ohms
+
 ######## END CONFIGURATION ########
 
 def calculate_crc8(data):
@@ -33,12 +40,16 @@ def update(frame, ser, currents, voltages, ax1, ax2):
       data = ser.read(5)  # Read remaining 5 bytes
       if len(data) == 5:
         frame_data = start_byte + data
-        current = struct.unpack('<H', frame_data[3:5])[0]  # Little-endian 16-bit
-        voltage = struct.unpack('<H', frame_data[1:3])[0]  # Little-endian 16-bit
+        raw_current = struct.unpack('<H', frame_data[3:5])[0]  # Little-endian 16-bit
+        raw_voltage = struct.unpack('<H', frame_data[1:3])[0]  # Little-endian 16-bit
         received_crc = frame_data[5]
         computed_crc = calculate_crc8(frame_data[1:5])
 
         if received_crc == computed_crc:
+          # Convert raw ADC values to actual measurements
+          voltage = (raw_voltage * ADC_REF_MV / ADC_REF_LSB) * VOLTAGE_AMP_IN_RATIO
+          current = (raw_current * ADC_REF_MV / ADC_REF_LSB) / (CURRENT_AMP_GAIN * CURRENT_AMP_SHUNT)
+
           currents.append(current)
           voltages.append(voltage)
           if len(currents) > 100:
