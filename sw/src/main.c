@@ -1,28 +1,23 @@
 #include "stm32l011xx.h"
+#include "app_cfg.h"
 
 #define PCLK_FREQ ((uint32_t)2097152U)
+
 /**
  * Configuration
  */
-
-#define UART_MSG_SIZE         (5u)
 #define UART_MSG_SIZE_WO_CRC  (UART_MSG_SIZE - 1u)
 /* Uncomment next line when padding is needed */
 // #define UART_PADDING_NEEDED
 
-#define ADC_BUFFER_SIZE   (2)  // Two channels: USB_Current (PA0), USB_Voltage (PA1)
+#define ADC_BUFFER_SIZE   (2)  // Two channels: USB_Current (PA0), USB_Voltage (PA2)
 #define ADC_REF_MV        (3300u)
 #define ADC_REF_LSB       (0xFFF) // 12bits ADC
 #define _ADC_LSB_TO_MV(x) ((x * ADC_REF_MV)/ADC_REF_LSB)
 
-#define CURRENT_AMP_GAIN      (500u)
-#define CURRENT_AMP_SHUNT     (1u) // TODO : Check value
 #define CURRENT_UA_MA_FACTOR  (1000u)
 #define _CURRENT_MV_TO_UA(x)  (uint16_t)((x * CURRENT_UA_MA_FACTOR)/(CURRENT_AMP_GAIN * CURRENT_AMP_SHUNT))
 
-#define VOLTAGE_AMP_GAIN      (1u)
-#define VOLTAGE_AMP_IN_RATIO  (0.5f)
-#define VOLTAGE_AMP_INV_RATIO (2u) // = 1/VOLTAGE_AMP_IN_RATIO
 #define _VOLTAGE_MV_TO_MV(x)  (uint16_t)((x * VOLTAGE_AMP_INV_RATIO)/VOLTAGE_AMP_GAIN)
 
 /**
@@ -295,7 +290,13 @@ int main(void)
     {
       g_u8AdcRdyFlag = 0u;
       // Send ADC results via USART
-      send_data(adc_to_current_microamp(g_au16adcBuffer[0]), adc_to_voltage_millivolt(g_au16adcBuffer[1]));
+      #ifdef CFG_SEND_RAW_DATA
+        // Send raw LSB values
+        send_data(g_au16adcBuffer[0], g_au16adcBuffer[1]);
+      #else
+        // Send converted ADC values
+        send_data(adc_to_current_microamp(g_au16adcBuffer[0]), adc_to_voltage_millivolt(g_au16adcBuffer[1]));
+      #endif // CFG_SEND_RAW_DATA
     }
   }
 }
