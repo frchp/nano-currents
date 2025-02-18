@@ -5,7 +5,7 @@ import matplotlib.animation as animation
 
 ########## CONFIGURATION ##########
 
-COM_PORT = "COM6"
+COM_PORT = "COM1"
 START_BYTE = b'\xA5'
 FRAME_LENGTH = 6
 
@@ -73,7 +73,7 @@ def main():
   currents, voltages = [], []
 
   fig, (ax1, ax2) = plt.subplots(2, 1)
-  ani = animation.FuncAnimation(fig, update, fargs=(ser, currents, voltages, ax1, ax2), interval=100)
+  ani = animation.FuncAnimation(fig, update, fargs=(ser, currents, voltages, ax1, ax2), interval=100, cache_frame_data=False)
   plt.show()
   ser.close()
 
