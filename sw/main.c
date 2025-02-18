@@ -5,8 +5,10 @@
  * Configuration
  */
 
-#define UART_MSG_SIZE     (4u)
-#define UART_BYTES_IN_U16 (2u)
+#define UART_MSG_SIZE         (5u)
+#define UART_MSG_SIZE_WO_CRC  (UART_MSG_SIZE - 1u)
+/* Uncomment next line when padding is needed */
+// #define UART_PADDING_NEEDED
 
 #define ADC_BUFFER_SIZE   (2)  // Two channels: USB_Current (PA0), USB_Voltage (PA1)
 #define ADC_REF_MV        (3300u)
@@ -38,15 +40,16 @@ typedef struct {
     {
       uint16_t m_u16Voltage;
       uint16_t m_u16Current;
-      #if (UART_MSG_SIZE % UART_BYTES_IN_U16 != 0)
-        uint8_t m_au8Padding[(UART_MSG_SIZE % UART_BYTES_IN_U16)];
+      uint8_t m_u8CRC;
+      #ifdef UART_PADDING_NEEDED
+        uint8_t m_au8Padding[2];
       #endif
     } __attribute__((packed)) m_sValues;
   } m_uData;
 
   uint8_t m_u8TxIdx;
 } UartPacket_t;
-static volatile UartPacket_t g_sUartPacket;
+static UartPacket_t g_sUartPacket;
 
 /* Private functions */
 static void clock_init(void);
@@ -54,6 +57,8 @@ static void gpio_init(void);
 static void tim21_init(void);
 static void adc_dma_init(void);
 static void usart2_init(void);
+static void crc_init(void);
+static uint8_t crc_calculate(uint8_t *data, uint32_t length);
 static void send_data(uint16_t current, uint16_t voltage);
 static uint16_t adc_to_current_microamp(uint16_t current_lsb);
 static uint16_t adc_to_voltage_millivolt(uint16_t voltage_lsb);
@@ -171,12 +176,41 @@ static void usart2_init(void)
   NVIC_EnableIRQ(USART2_IRQn);
 }
 
+static void crc_init(void)
+{
+  // Enable CRC clock in RCC
+  RCC->AHBENR |= RCC_AHBENR_CRCEN;
+
+  // Reset CRC peripheral
+  CRC->CR |= CRC_CR_RESET;
+
+  // Set polynomial size to 8-bit
+  CRC->CR |= CRC_CR_POLYSIZE_0;
+}
+
+static uint8_t crc_calculate(uint8_t *data, uint32_t length)
+{
+  // Reset CRC calculation
+  CRC->CR |= CRC_CR_RESET;
+
+  // Load array value by value
+  for (uint32_t i = 0; i < length; i++)
+  {
+    *((volatile uint8_t*)&CRC->DR) = data[i];
+  }
+
+  // Read computed CRC value from CRC->DR register (only lower 8 bits)
+  return (uint8_t)CRC->DR;
+}
+
 static void send_data(uint16_t current, uint16_t voltage)
 {
   // Fill packet
   g_sUartPacket.m_u8TxIdx = 0u;
   g_sUartPacket.m_uData.m_sValues.m_u16Current = current;
   g_sUartPacket.m_uData.m_sValues.m_u16Voltage = voltage;
+  // Compute CRC
+  g_sUartPacket.m_uData.m_sValues.m_u8CRC = crc_calculate((uint8_t*)g_sUartPacket.m_uData.m_acRawBuffer, UART_MSG_SIZE_WO_CRC);
 
   // Enable TXE interrupt to know when to refill peripheral
   while (!(USART2->ISR & USART_ISR_TXE));  // Wait for TX buffer empty
@@ -251,6 +285,7 @@ int main(void)
   gpio_init();
   adc_dma_init();
   usart2_init();
+  crc_init();
   tim21_init(); // Start timer last, when every other peripheral is init
 
   while (1)
