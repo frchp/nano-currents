@@ -11,7 +11,10 @@ ADC to measure current and voltage.
 
 UART to send data.
 
+## Python script
+
+Read incoming serial data and display it on graph.
+
 ## Improvements
  - Drive reset line on the STM32L011
  - For more precision, use external ADC
- - SW : divide components in files
