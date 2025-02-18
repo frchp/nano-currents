@@ -64,8 +64,8 @@ def update(frame, ser, currents, voltages, ax1, ax2):
           ax2.plot(voltages, label='Voltage (mV)', color='r')
           ax1.legend()
           ax2.legend()
-          ax1.set_ylim(0, max(currents) + 50)
-          ax2.set_ylim(0, max(voltages) + 50)
+          ax1.set_ylim(0, max(currents) + max(currents) * 0.1)
+          ax2.set_ylim(0, max(voltages) + max(currents) * 0.1)
         break
 
 def main():
@@ -73,7 +73,7 @@ def main():
   currents, voltages = [], []
 
   fig, (ax1, ax2) = plt.subplots(2, 1)
-  ani = animation.FuncAnimation(fig, update, fargs=(ser, currents, voltages, ax1, ax2), interval=100, cache_frame_data=False)
+  ani = animation.FuncAnimation(fig, update, fargs=(ser, currents, voltages, ax1, ax2), interval=10, cache_frame_data=False)
   plt.show()
   ser.close()
 
