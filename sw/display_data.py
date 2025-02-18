@@ -27,28 +27,33 @@ def read_serial(port= COM_PORT, baudrate=115200):
   return ser
 
 def update(frame, ser, currents, voltages, ax1, ax2):
-  data = ser.read(5)  # Read 5 bytes
-  if len(data) == 5:
-    current = struct.unpack('<H', data[0:2])[0]  # Little-endian 16-bit
-    voltage = struct.unpack('<H', data[2:4])[0]  # Little-endian 16-bit
-    received_crc = data[4]
-    computed_crc = calculate_crc8(data[:4])
+  while True:
+    start_byte = ser.read(1)
+    if start_byte == b'\xA5':
+      data = ser.read(5)  # Read remaining 5 bytes
+      if len(data) == 5:
+        frame_data = start_byte + data
+        current = struct.unpack('<H', frame_data[3:5])[0]  # Little-endian 16-bit
+        voltage = struct.unpack('<H', frame_data[1:3])[0]  # Little-endian 16-bit
+        received_crc = frame_data[5]
+        computed_crc = calculate_crc8(frame_data[1:5])
 
-    if received_crc == computed_crc:
-      currents.append(current)
-      voltages.append(voltage)
-      if len(currents) > 100:
-        currents.pop(0)
-        voltages.pop(0)
+        if received_crc == computed_crc:
+          currents.append(current)
+          voltages.append(voltage)
+          if len(currents) > 100:
+            currents.pop(0)
+            voltages.pop(0)
 
-      ax1.clear()
-      ax2.clear()
-      ax1.plot(currents, label='Current (mA)')
-      ax2.plot(voltages, label='Voltage (mV)', color='r')
-      ax1.legend()
-      ax2.legend()
-      ax1.set_ylim(0, max(currents) + 50)
-      ax2.set_ylim(0, max(voltages) + 50)
+          ax1.clear()
+          ax2.clear()
+          ax1.plot(currents, label='Current (mA)')
+          ax2.plot(voltages, label='Voltage (mV)', color='r')
+          ax1.legend()
+          ax2.legend()
+          ax1.set_ylim(0, max(currents) + 50)
+          ax2.set_ylim(0, max(voltages) + 50)
+        break
 
 def main():
   ser = read_serial()

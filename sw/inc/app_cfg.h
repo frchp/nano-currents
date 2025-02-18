@@ -4,7 +4,7 @@
 /**
  * Message size
  */
-#define UART_MSG_SIZE         (5u)
+#define UART_MSG_SIZE         (6u)
 
 /**
  * Send raw or computed data

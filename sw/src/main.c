@@ -33,6 +33,7 @@ typedef struct {
     char m_acRawBuffer[UART_MSG_SIZE];
     struct
     {
+      uint8_t m_u8StartByte;
       uint16_t m_u16Voltage;
       uint16_t m_u16Current;
       uint8_t m_u8CRC;
@@ -200,6 +201,12 @@ static uint8_t crc_calculate(uint8_t *data, uint32_t length)
 
 static void send_data(uint16_t current, uint16_t voltage)
 {
+  static bool bFirstTime = true;
+  if(bFirstTime)
+  {
+    bFirstTime = false;
+    g_sUartPacket.m_uData.m_sValues.m_u8StartByte = 0xA5;
+  }
   // Fill packet
   g_sUartPacket.m_u8TxIdx = 0u;
   g_sUartPacket.m_uData.m_sValues.m_u16Current = current;
