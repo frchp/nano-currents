@@ -5395,6 +5395,17 @@
 		)
 		(uuid "43a993c5-0430-4f53-86f9-cad3d62cb668")
 	)
+	(text "V_out = I * G * Rs\nI = 500mA max, 150 moy\nG = 20 (INA240A1)\nRs = 1Ohms"
+		(exclude_from_sim no)
+		(at 121.666 94.488 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "493108de-8203-4de1-9f39-f7c481b2b518")
+	)
 	(text "DUT out"
 		(exclude_from_sim no)
 		(at 245.618 48.26 0)
@@ -8907,7 +8918,7 @@
 				)
 			)
 		)
-		(property "Value" "R"
+		(property "Value" "1"
 			(at 266.7 74.93 90)
 			(effects
 				(font
@@ -8915,7 +8926,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_4020_10251Metric_Pad1.65x5.30mm_HandSolder"
+		(property "Footprint" "Resistor_SMD:R_1206_3216Metric_Pad1.30x1.75mm_HandSolder"
 			(at 266.7 72.898 90)
 			(effects
 				(font
