@@ -1,3 +1,5 @@
 
 # KiCad backups
 **/*backups
+**/*.lck
+**/#auto_saved_files#
