@@ -201,12 +201,7 @@ static uint8_t crc_calculate(uint8_t *data, uint32_t length)
 
 static void send_data(uint16_t current, uint16_t voltage)
 {
-  static bool bFirstTime = true;
-  if(bFirstTime)
-  {
-    bFirstTime = false;
-    g_sUartPacket.m_uData.m_sValues.m_u8StartByte = 0xA5;
-  }
+  g_sUartPacket.m_uData.m_sValues.m_u8StartByte = 0xA5;
   // Fill packet
   g_sUartPacket.m_u8TxIdx = 0u;
   g_sUartPacket.m_uData.m_sValues.m_u16Current = current;
