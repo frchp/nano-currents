@@ -5,7 +5,7 @@ import matplotlib.animation as animation
 
 ########## CONFIGURATION ##########
 
-COM_PORT = "COM1"
+COM_PORT = "COM6"
 START_BYTE = b'\xA5'
 FRAME_LENGTH = 6
 

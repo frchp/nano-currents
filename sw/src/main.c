@@ -27,7 +27,8 @@
 static volatile uint16_t g_au16adcBuffer[ADC_BUFFER_SIZE];  // Buffer for ADC data
 static volatile uint8_t g_u8AdcRdyFlag = 0u;
 
-typedef struct {
+typedef struct
+{
   union
   {
     char m_acRawBuffer[UART_MSG_SIZE];
@@ -46,6 +47,13 @@ typedef struct {
   uint8_t m_u8TxIdx;
 } UartPacket_t;
 static UartPacket_t g_sUartPacket;
+
+typedef enum
+{
+  TX_IS_FREE,
+  TX_IN_PROGRESS
+} UartStatus_t;
+static volatile UartStatus_t g_eTxStatus = TX_IS_FREE;
 
 /* Private functions */
 static void clock_init(void);
@@ -180,8 +188,14 @@ static void crc_init(void)
   // Reset CRC peripheral
   CRC->CR |= CRC_CR_RESET;
 
+  // Set initial value to 0x00
+  CRC->INIT = 0u;
+
+  // Set polynomial to x^8 + x^2 + x + 1
+  CRC->POL = 0x07;
+
   // Set polynomial size to 8-bit
-  CRC->CR |= CRC_CR_POLYSIZE_0;
+  CRC->CR = CRC_CR_POLYSIZE_1 | (0u << CRC_CR_REV_IN_Pos) | (0u << CRC_CR_REV_OUT_Pos);
 }
 
 static uint8_t crc_calculate(uint8_t *data, uint32_t length)
@@ -201,19 +215,26 @@ static uint8_t crc_calculate(uint8_t *data, uint32_t length)
 
 static void send_data(uint16_t current, uint16_t voltage)
 {
-  g_sUartPacket.m_uData.m_sValues.m_u8StartByte = 0xA5;
-  // Fill packet
-  g_sUartPacket.m_u8TxIdx = 0u;
-  g_sUartPacket.m_uData.m_sValues.m_u16Current = current;
-  g_sUartPacket.m_uData.m_sValues.m_u16Voltage = voltage;
-  // Compute CRC
-  g_sUartPacket.m_uData.m_sValues.m_u8CRC = crc_calculate((uint8_t*)g_sUartPacket.m_uData.m_acRawBuffer, UART_MSG_SIZE_WO_CRC);
+  if(g_eTxStatus == TX_IS_FREE)
+  {
+    g_eTxStatus = TX_IN_PROGRESS; // Transfer in progress
 
-  // Enable TXE interrupt to know when to refill peripheral
-  while (!(USART2->ISR & USART_ISR_TXE));  // Wait for TX buffer empty
-  USART2->CR1 |= USART_CR1_TXEIE;
+    g_sUartPacket.m_uData.m_sValues.m_u8StartByte = 0xA5;
+    // Fill packet
+    g_sUartPacket.m_u8TxIdx = 0u;
+    g_sUartPacket.m_uData.m_sValues.m_u16Current = 0x0102;//current;
+    g_sUartPacket.m_uData.m_sValues.m_u16Voltage = 0x0304;//voltage;
+    // Compute CRC
+    g_sUartPacket.m_uData.m_sValues.m_u8CRC = crc_calculate((uint8_t*)g_sUartPacket.m_uData.m_acRawBuffer, UART_MSG_SIZE_WO_CRC);
 
-  send_next_char();
+    while (!(USART2->ISR & USART_ISR_TXE));  // Wait for TX buffer empty
+
+    // Send the first byte manually
+    send_next_char();
+
+    // Enable TXE interrupt to know when to refill peripheral
+    USART2->CR1 |= USART_CR1_TXEIE;
+  }
 }
 
 static uint16_t adc_to_current_microamp(uint16_t current_lsb)
@@ -228,11 +249,17 @@ static uint16_t adc_to_voltage_millivolt(uint16_t voltage_lsb)
 
 static void send_next_char(void)
 {
-  USART2->TDR = g_sUartPacket.m_uData.m_acRawBuffer[g_sUartPacket.m_u8TxIdx++];
-  if (g_sUartPacket.m_u8TxIdx == UART_MSG_SIZE)
+  if (g_sUartPacket.m_u8TxIdx < UART_MSG_SIZE)
   {
-    // All data have been transmitted
+    uint8_t data = (uint8_t)g_sUartPacket.m_uData.m_acRawBuffer[g_sUartPacket.m_u8TxIdx];
+    USART2->TDR = data;
+    g_sUartPacket.m_u8TxIdx++;
+  }
+  else
+  {
+    // Transmission complete, disable TXE interrupt
     USART2->CR1 &= ~USART_CR1_TXEIE;
+    g_eTxStatus = TX_IS_FREE;
   }
 }
 
