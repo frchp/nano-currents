@@ -251,13 +251,11 @@ static void send_next_char(void)
 {
   if (g_sUartPacket.m_u8TxIdx < UART_MSG_SIZE)
   {
-    uint8_t data = (uint8_t)g_sUartPacket.m_uData.m_acRawBuffer[g_sUartPacket.m_u8TxIdx];
-    USART2->TDR = data;
-    g_sUartPacket.m_u8TxIdx++;
+    USART2->TDR = (uint8_t)g_sUartPacket.m_uData.m_acRawBuffer[g_sUartPacket.m_u8TxIdx++];
   }
   else
   {
-    // Transmission complete, disable TXE interrupt
+    // All data have been transmitted
     USART2->CR1 &= ~USART_CR1_TXEIE;
     g_eTxStatus = TX_IS_FREE;
   }
